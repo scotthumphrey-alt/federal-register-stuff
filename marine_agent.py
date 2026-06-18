@@ -45,6 +45,8 @@ def filter_events_with_ai(raw_html_content):
         print(f"AI Analysis failed: {e}")
         return None
 
+import os
+
 def main():
     print(f"Scraping Marine Exchange upcoming events feed at: {TARGET_URL}...")
     raw_content = scrape_upcoming_events()
@@ -53,8 +55,21 @@ def main():
         return
     print("Analyzing event calendar details with AI...")
     analysis_results = filter_events_with_ai(raw_content)
-    print("\n=== AGENT SCAN RESULTS ===")
-    print(analysis_results)
+    
+    # Format the clean summary report
+    today_str = datetime.date.today().strftime("%B %d, %Y")
+    report_content = f"# Marine Exchange Event Scan Results - {today_str}\n\n"
+    report_content += f"{analysis_results}\n"
+
+    # Write results directly to a clean markdown file in the repository
+    with open("marine_exchange_matches.md", "w") as f:
+        f.write(report_content)
+        
+    # Inject directly into the GitHub dashboard summary environment
+    github_summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+    if github_summary_path:
+        with open(github_summary_path, "w") as f:
+            f.write(report_content)
 
 if __name__ == "__main__":
     main()
