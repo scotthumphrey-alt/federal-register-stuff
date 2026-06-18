@@ -1,0 +1,53 @@
+name: Corporate Intelligence Intelligence Scan
+
+on:
+  schedule:
+    - cron: '0 15 * * 1' # Triggers every Monday morning at 15:00 UTC
+  workflow_dispatch: 
+
+permissions:
+  contents: write
+
+jobs:
+  run-intel-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository Code
+        uses: actions/checkout@v4.2.2
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5.1.1
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Bulk Intelligence Scan
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python company_agent.py
+
+      - name: Commit Spreadsheet Report File
+        run: |
+          git config --global user.name "Automated Intel Agent"
+          git config --global user.email "agent@github.com"
+          git add *.md
+          git commit -m "Company spreadsheet matrix compiled [skip ci]" || exit 0
+          git push
+
+      - name: Send Summary Email
+        uses: dawidd6/action-send-mail@v4
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "Corporate Market Data Summary Matrix"
+          to: ${{ secrets.EMAIL_USERNAME }}
+          from: "Automated Intel Agent <${{ secrets.EMAIL_USERNAME }}>"
+          html_body: file://company_intelligence.md
+          convert_markdown: true
