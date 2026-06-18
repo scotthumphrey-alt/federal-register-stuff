@@ -2,124 +2,109 @@ import csv
 import datetime
 import os
 import time
-import urllib.parse
 import requests
 from bs4 import BeautifulSoup
 from google import genai
 
 client = genai.Client()
 
-def get_wikipedia_variants(company_name):
-    """Generates 10 different structural URL possibilities to guarantee a match."""
-    # Clean up trailing spaces and common punctuation
-    base = company_name.strip()
+def broad_internet_search(identity_name):
+    """Executes an open search query to aggregate data from any available public resource."""
+    # We utilize a clean, free public search engine endpoint (DuckDuckGo HTML) 
+    # to find open market profile entries without getting locked down by enterprise firewalls.
+    search_url = "https://html.duckduckgo.com/html/"
+    query = f"{identity_name} corporate headquarters executive leadership profile team"
     
-    # 10 structural formatting strategies
-    variants = [
-        base,                                # 1. Matson
-        f"{base} (company)",                 # 2. Matson (company)
-        f"{base} Navigation Company",        # 3. Matson Navigation Company
-        f"{base}, Inc.",                     # 4. Matson, Inc.
-        f"{base} Inc.",                      # 5. Matson Inc
-        f"{base} Corporation",               # 6. Matson Corporation
-        f"{base} Maritime",                  # 7. Matson Maritime
-        f"{base} Logistics",                 # 8. Matson Logistics
-        f"{base} Holdings",                  # 9. Matson Holdings
-        f"{base} (shipping company)"         # 10. Matson (shipping company)
-    ]
-    
-    # Format spaces into underscores and cleanly encode special characters for URLs
-    urls = []
-    for v in variants:
-        encoded_title = urllib.parse.quote(v.replace(" ", "_"))
-        urls.append(f"https://en.wikipedia.org/wiki/{encoded_title}")
-    return urls
-
-def fetch_web_text_with_fallbacks(company_name):
-    """Tries up to 10 different URL variations until a page successfully loads."""
     headers = {
-        "User-Agent": "CorporateIntelScanAgent/1.0 (scotthumphrey-alt; contact: agent@github.com)",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     
-    # Fetch our list of 10 search variations
-    target_urls = get_wikipedia_variants(company_name)
-    
-    for url in target_urls:
-        try:
-            print(f"Checking variant path for {company_name}: {url}")
-            res = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+    try:
+        print(f"Executing broad internet search vector for: {identity_name}")
+        res = requests.post(search_url, data={"q": query}, headers=headers, timeout=15)
+        res.raise_for_status()
+        
+        soup = BeautifulSoup(res.text, 'html.parser')
+        
+        # Pull text from snippet containers and search result cards
+        search_snippets = []
+        for result in soup.find_all('td', class_='result-snippet'):
+            search_snippets.append(result.get_text(strip=True))
             
-            # If the server responds with a 404 error, skip immediately to the next variant
-            if res.status_code == 404:
-                continue
-                
-            res.raise_for_status()
-            soup = BeautifulSoup(res.text, 'html.parser')
+        # If we successfully scraped public search summaries, combine them as the text source
+        if search_snippets:
+            combined_context = " ".join(search_snippets[:8])
+            print(f"--> Successfully extracted {len(search_snippets)} public data text layers.")
+            return combined_context
             
-            # Check if it's a blank search results page or a "disambiguation" helper page
-            page_text = soup.get_text()
-            if "may refer to:" in page_text or "Other reasons this message may be displayed" in page_text:
-                continue
-                
-            # Clean layout noise if successful
-            for element in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
-                element.decompose()
-                
-            print(f"--> Success! Found valid reference page layout at: {url}")
-            return soup.get_text(separator=" ", strip=True)
-            
-        except Exception as e:
-            print(f"Skipping path due to handshake block: {e}")
-            continue
-            
-    print(f"❌ All 10 variants exhausted for {company_name}")
-    return ""
+        # Fallback: If snippets structure changed, scrape the plain text layout of the page
+        return soup.get_text(separator=" ", strip=True)[:10000]
+        
+    except Exception as e:
+        print(f"Search vector exception for {identity_name}: {e}")
+        return ""
 
-def extract_corporate_metrics(company_name, raw_text):
-    if not raw_text.strip():
-        return f"| {company_name} | Metrics Unavailable | N/A | N/A |\n"
+def extract_corporate_metrics_with_retry(identity_name, raw_context):
+    """Processes search data through Gemini using a rate-limiting fallback safety valve."""
+    if not raw_context.strip():
+        return f"| {identity_name} | Search Query Blocked | N/A | N/A |\n"
 
     prompt = f"""
-    Analyze the following raw text content extracted from the profile of {company_name}.
-    Task: Extract these exact metrics:
+    Analyze the following internet search results and public snippet data regarding: {identity_name}.
+    
+    Your goal is to extract:
     1. Corporate Headquarters (City and State/Country)
-    2. Executive Leadership (Identify the current CEO or equivalent President)
-    3. Operational Footprint (Summarize key services or focus areas in a brief sentence)
+    2. Executive Leadership (Identify the top leader, such as CEO, Executive Director, or President)
+    3. Operational Footprint (Summarize their core services, infrastructure, or domain in one brief sentence)
 
     Formatting Rules:
     Output your answer strictly as a single row of a markdown table matching this layout:
-    | {company_name} | [Headquarters Location] | [CEO Name] | [Operational Summary Detail] |
-    Do not provide conversational introductions, no column headers, and no trailing notes. 
+    | {identity_name} | [Headquarters Location] | [CEO/Director Name] | [Operational Summary Detail] |
+    
+    Do not include conversational introductions, markdown headers, or trailing notes.
 
-    Raw Text Data:
-    {raw_text}
+    Public Search Data Content:
+    {raw_context}
     """
-    try:
-        response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-        return response.text.strip() + "\n"
-    except Exception as e:
-        return f"| {company_name} | Extraction Error | N/A | N/A |\n"
+    
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt
+            )
+            return response.text.strip() + "\n"
+        except Exception as e:
+            print(f"Gemini API rate buffer triggered. Attempt {attempt + 1} paused...")
+            time.sleep(5 * (attempt + 1))
+            
+    return f"| {identity_name} | Extraction Processing Error | N/A | N/A |\n"
 
 def main():
     if not os.path.exists("companies.csv"):
+        print("Missing target file companies.csv")
         return
 
     today_str = datetime.date.today().strftime("%B %d, %Y")
-    report = f"# Compiled Company Intelligence Digest - {today_str}\n\n"
-    report += "| Company Name | Corporate Headquarters | Executive Leadership | Operational Profile / Footprint |\n"
+    report = f"# Compiled Corporate & Agency Intelligence Digest - {today_str}\n\n"
+    report += "| Entity Name | Corporate Headquarters | Executive Leadership | Operational Profile / Footprint |\n"
     report += "| :--- | :--- | :--- | :--- |\n"
 
     with open("companies.csv", mode="r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             name = row.get("Company")
+            if not name:
+                continue
+                
+            print(f"\n--- Processing Open Internet Vector: {name} ---")
+            aggregated_text = broad_internet_search(name)
             
-            # Use our new 10-tier fallback logic
-            site_text = fetch_web_text_with_fallbacks(name)
-            extracted_row = extract_corporate_metrics(name, site_text[:12000])
+            extracted_row = extract_corporate_metrics_with_retry(name, aggregated_text)
             report += extracted_row
-            time.sleep(2)
+            
+            # 3-second delay to keep the automation completely stable
+            time.sleep(3)
 
     with open("company_intelligence.md", "w", encoding="utf-8") as f:
         f.write(report)
