@@ -66,6 +66,8 @@ def load_quickbooks_matrix(filepath, prefix):
     return pd.DataFrame(cleaned_rows)
 
 def main():
+    import time
+    
     # Identify files by checking name strings
     file_24 = find_quickbooks_file("24")
     file_25 = find_quickbooks_file("25")
@@ -107,8 +109,26 @@ def main():
     | Account Item | FY24 Budget | FY24 Actual | FY26 Budget | FY26 Actual YTD | FY26 Projected Close | FY27 Proposed Budget | Notes |
     """
 
-    response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+    print("Analyzing combined spreadsheets...")
     
+    # Self-healing retry loop for 429 rate limits
+    response = None
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            break
+        except Exception as e:
+            if "429" in str(e) or "quota" in str(e).lower():
+                print(f"Hit AI rate limit. Pausing 30 seconds to clear buffer (Attempt {attempt + 1}/3)...")
+                time.sleep(30)
+            else:
+                print(f"Error calling AI: {e}")
+                return
+
+    if not response:
+        print("Error: Could not get a response from the AI after retries.")
+        return
+        
     with open("budget_proposal_fy27.md", "w", encoding="utf-8") as f:
         f.write(response.text)
     
