@@ -1,5 +1,7 @@
 import os
 import glob
+import sys
+import time
 import pandas as pd
 from google import genai
 
@@ -66,22 +68,19 @@ def load_quickbooks_matrix(filepath, prefix):
     return pd.DataFrame(cleaned_rows)
 
 def main():
-    import time
-    
-    # Identify files by checking name strings
     file_24 = find_quickbooks_file("24")
     file_25 = find_quickbooks_file("25")
     file_26 = find_quickbooks_file("26")
+    salary_file = find_quickbooks_file("salary") or find_quickbooks_file("personnel")
 
     if not file_24 or not file_26:
         print("Error: Missing required fiscal data files in folder.")
-        return
+        sys.exit(1)
 
     df_24 = load_quickbooks_matrix(file_24, "FY24")
     df_25 = load_quickbooks_matrix(file_25, "FY25") if file_25 else pd.DataFrame()
     df_26 = load_quickbooks_matrix(file_26, "FY26")
 
-    # Combine data columns sideways
     master_df = df_24
     if not df_25.empty:
         master_df = pd.merge(master_df, df_25, on='account', how='outer')
@@ -93,41 +92,53 @@ def main():
 
     data_matrix_str = master_df.to_string(index=False)
 
-    prompt = f"""
-    You are an expert CFO. Review this budget matrix comparing historical performance to project a final FY2027 recommended budget starting July 1st.
+    salary_context_str = "No separate salary spreadsheet uploaded."
+    if salary_file:
+        print(f"Detecting separate salary/personnel reference sheet: {salary_file}")
+        if salary_file.endswith('.xlsx') or salary_file.endswith('.xls'):
+            df_sal = pd.read_excel(salary_file, keep_default_na=False)
+        else:
+            df_sal = pd.read_csv(salary_file, keep_default_na=False)
+        salary_context_str = df_sal.to_string(index=False)
 
-    Consolidated spreadsheet data rows:
+    prompt = f"""
+    You are an expert CFO. Review this financial dataset to construct a recommended FY2027 budget starting July 1st.
+
+    DATASET 1: Consolidated QuickBooks General Ledger Rows:
     {data_matrix_str}
 
-    Directives:
-    1. For staff operator salary lines: increase base allocations.
-    2. For annual bonus lines: completely discontinue and set target to 0.
-    3. For other lines: assess baseline variance and velocity ('FY26 Budget' vs 'FY26 Projected Close'). If a line tracks over budget, adjust upward. If under-utilized, reduce it.
+    DATASET 2: Raw Personnel Salary & Bonus Spreadsheet:
+    {salary_context_str}
+
+    Directives for FY27 Column Target Construction:
+    1. For staff operator salary lines: do not use basic run-rate math. Instead, analyze Dataset 2, calculate the cumulative total of the new annual salaries listed, and map that exact value into the FY27 Proposed Budget line.
+    2. For annual bonus lines: calculate the cumulative total from the bonus columns in Dataset 2, or set to 0 if the spreadsheet dictates discontinuation.
+    3. For all other operational lines: assess baseline variance and velocity ('FY26 Budget' vs 'FY26 Projected Close'). If a line tracks over budget, adjust upward logically. If under-utilized, reduce it.
 
     Formatting Rules:
     Generate a clean markdown table with these columns:
-    | Account Item | FY24 Budget | FY24 Actual | FY26 Budget | FY26 Actual YTD | FY26 Projected Close | FY27 Proposed Budget | Notes |
+    | Account Item | FY24 Budget | FY24 Actual | FY26 Budget | FY26 Actual YTD | FY26 Projected Close | FY27 Proposed Budget | Notes / Justification |
     """
 
-    print("Analyzing combined spreadsheets...")
+    print("Analyzing spreadsheets and applying cross-reference intelligence...")
     
-    # Self-healing retry loop for 429 rate limits
     response = None
+    # Extended wait tracking loops
     for attempt in range(3):
         try:
             response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
             break
         except Exception as e:
             if "429" in str(e) or "quota" in str(e).lower():
-                print(f"Hit AI rate limit. Pausing 30 seconds to clear buffer (Attempt {attempt + 1}/3)...")
-                time.sleep(30)
+                print(f"Hit AI rate limit block. Pausing 60 seconds to clear free tier buffer (Attempt {attempt + 1}/3)...")
+                time.sleep(60)
             else:
-                print(f"Error calling AI: {e}")
-                return
+                print(f"Error calling AI engine: {e}")
+                sys.exit(1)
 
     if not response:
-        print("Error: Could not get a response from the AI after retries.")
-        return
+        print("Error: Could not get a response from the AI after extended retries.")
+        sys.exit(1)
         
     with open("budget_proposal_fy27.md", "w", encoding="utf-8") as f:
         f.write(response.text)
