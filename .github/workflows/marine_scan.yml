@@ -2,9 +2,11 @@ name: Marine Exchange Event Scan
 
 on:
   schedule:
-    # Runs Monday through Friday at 14:00 UTC (10:00 AM Eastern / 7:00 AM Pacific)
     - cron: '0 14 * * 1-5'
   workflow_dispatch: 
+
+permissions:
+  contents: write
 
 jobs:
   run-marine-agent:
@@ -27,3 +29,11 @@ jobs:
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python marine_agent.py
+
+      - name: Commit Report File Changes
+        run: |
+          git config --global user.name "Automated Scan Agent"
+          git config --global user.email "agent@github.com"
+          git add *.md
+          git commit -m "Automated morning scan matches updated [skip ci]" || exit 0
+          git push
