@@ -8,27 +8,24 @@ from google import genai
 client = genai.Client()
 
 def fetch_web_text(url):
-    """Downloads a public page using realistic browser signatures to bypass bot filters."""
+    """Downloads clean text using an explicitly declared, policy-compliant descriptive header."""
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Upgrade-Insecure-Requests": "1",
-        "Cache-Control": "max-age=0"
+        # Declares a clear, compliant identity with contact info so servers don't flag it as an invasive bot
+        "User-Agent": "CorporateIntelScanAgent/1.0 (scotthumphrey-alt; contact: agent@github.com)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
     }
     try:
-        # Added an automatic redirect follower and a slightly relaxed timeout
         res = requests.get(url, headers=headers, timeout=20, allow_redirects=True)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
         
-        # Strip away clutter
-        for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
+        # Strip template layout noise
+        for element in soup(["script", "style", "nav", "footer", "header", "aside", "noscript"]):
             element.decompose()
             
         return soup.get_text(separator=" ", strip=True)
     except Exception as e:
-        print(f"Skipping {url} due to connection error: {e}")
+        print(f"Skipping {url} due to connection issue: {e}")
         return ""
 
 def extract_corporate_metrics(company_name, raw_text):
