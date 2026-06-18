@@ -4,7 +4,7 @@ import requests
 from google import genai
 from google.genai import types
 
-TARGET_TOPIC = "Federal Grant Infrastructure and Uniform Guidance updates"
+TARGET_TOPIC = "dredging operations, navigational channel maintenance, San Francisco Bay, harbor safety, anchorage regulations"
 AGENCY_FILTER = ""  
 
 client = genai.Client()
