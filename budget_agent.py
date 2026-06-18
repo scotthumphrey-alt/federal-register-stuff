@@ -8,7 +8,6 @@ from google import genai
 client = genai.Client()
 
 def find_quickbooks_file(pattern):
-    """Scans financial_data for a file matching a pattern."""
     search_path = os.path.join("financial_data", f"*{pattern}*")
     found_files = glob.glob(search_path)
     if found_files:
@@ -16,7 +15,6 @@ def find_quickbooks_file(pattern):
     return None
 
 def load_quickbooks_matrix(filepath, prefix):
-    """Loads a QuickBooks layout and isolates data columns."""
     if not filepath or not os.path.exists(filepath):
         return pd.DataFrame()
         
@@ -86,29 +84,31 @@ def main():
         master_df = pd.merge(master_df, df_25, on='account', how='outer')
     master_df = pd.merge(master_df, df_26, on='account', how='outer').fillna(0.0)
 
-    # Project active year metrics through June 30th (Day 353 to 365 run-rate conversion)
     master_df['FY26 Projected Close'] = (master_df['FY26 Actual'] / 353.0) * 365.0
     master_df['FY26 Projected Close'] = master_df['FY26 Projected Close'].round(2)
 
-    data_matrix_str = master_df.to_string(index=False)
+    # TOKEN SAVER LAYER: Filter out every single row where all financial values equal zero
+    numeric_cols = master_df.select_dtypes(include=['number']).columns
+    master_df = master_df[(master_df[numeric_cols] != 0).any(axis=1)]
 
-    salary_context_str = "No separate salary spreadsheet uploaded."
+    data_matrix_csv = master_df.to_csv(index=False)
+
+    salary_context_csv = "No separate salary spreadsheet uploaded."
     if salary_file:
-        print(f"Detecting separate salary/personnel reference sheet: {salary_file}")
         if salary_file.endswith('.xlsx') or salary_file.endswith('.xls'):
             df_sal = pd.read_excel(salary_file, keep_default_na=False)
         else:
             df_sal = pd.read_csv(salary_file, keep_default_na=False)
-        salary_context_str = df_sal.to_string(index=False)
+        salary_context_csv = df_sal.to_csv(index=False)
 
     prompt = f"""
     You are an expert CFO. Review this financial dataset to construct a recommended FY2027 budget starting July 1st.
 
-    DATASET 1: Consolidated QuickBooks General Ledger Rows:
-    {data_matrix_str}
+    DATASET 1: Consolidated QuickBooks General Ledger (CSV format):
+    {data_matrix_csv}
 
-    DATASET 2: Raw Personnel Salary & Bonus Spreadsheet:
-    {salary_context_str}
+    DATASET 2: Raw Personnel Salary & Bonus List (CSV format):
+    {salary_context_csv}
 
     Directives for FY27 Column Target Construction:
     1. For staff operator salary lines: do not use basic run-rate math. Instead, analyze Dataset 2, calculate the cumulative total of the new annual salaries listed, and map that exact value into the FY27 Proposed Budget line.
@@ -120,24 +120,20 @@ def main():
     | Account Item | FY24 Budget | FY24 Actual | FY26 Budget | FY26 Actual YTD | FY26 Projected Close | FY27 Proposed Budget | Notes / Justification |
     """
 
-    print("Analyzing spreadsheets and applying cross-reference intelligence...")
+    print("Analyzing trimmed financial matrices...")
     
     response = None
-    # Extended wait tracking loops
     for attempt in range(3):
         try:
-            response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
+            # Switched model to gemini-1.5-flash for more lenient rate windows
+            response = client.models.generate_content(model='gemini-1.5-flash', contents=prompt)
             break
         except Exception as e:
-            if "429" in str(e) or "quota" in str(e).lower():
-                print(f"Hit AI rate limit block. Pausing 60 seconds to clear free tier buffer (Attempt {attempt + 1}/3)...")
-                time.sleep(60)
-            else:
-                print(f"Error calling AI engine: {e}")
-                sys.exit(1)
+            print(f"Rate window busy. Waiting 60 seconds (Attempt {attempt + 1}/3)...")
+            time.sleep(60)
 
     if not response:
-        print("Error: Could not get a response from the AI after extended retries.")
+        print("Error: Quota constraints could not be cleared.")
         sys.exit(1)
         
     with open("budget_proposal_fy27.md", "w", encoding="utf-8") as f:
