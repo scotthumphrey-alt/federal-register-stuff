@@ -20,10 +20,12 @@ def parse_financial_sheet(path, column_keyword):
     print(f"Parsing File: {path}")
     df_raw = pd.read_excel(path, header=None).fillna("") if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, header=None).fillna("")
     
+    # Locate the true column label row by looking for a row with multiple business headers
     header_idx = 0
     for idx, row in df_raw.iterrows():
         row_str = " ".join([str(val).lower() for val in row])
-        if any(k in row_str for k in ["actual", "budget", "totals", "amount"]):
+        # Ensure we don't trip on the title banner by requiring at least two distinctive keywords
+        if ("actual" in row_str and "budget" in row_str) or ("accounts" in row_str and "totals" in row_str):
             header_idx = idx
             break
             
@@ -32,7 +34,7 @@ def parse_financial_sheet(path, column_keyword):
     
     acct_col = df.columns[0]
     
-    # Locate column dynamically by specific tracking requirement
+    # Target the correct data column dynamically
     val_col = None
     for col in df.columns:
         if column_keyword.lower() in col and 'over' not in col and '%' not in col:
@@ -42,12 +44,12 @@ def parse_financial_sheet(path, column_keyword):
     if not val_col:
         val_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
-    print(f"File Mapped -> Account Axis: [{acct_col}] | Target Financial Column: [{val_col}]")
+    print(f"Successfully Mapped -> Account Axis: [{acct_col}] | Target Value Column: [{val_col}]")
 
     rows = []
     for _, r in df.iterrows():
         label = str(r[acct_col]).strip()
-        if not label or any(k in label.lower() for k in ['income after', 'gross profit', 'guidelines', 'marine exchange', 'basis', 'gmt', 'july', 'june', 'accounting']):
+        if not label or any(k in label.lower() for k in ['income after', 'gross profit', 'guidelines', 'marine exchange', 'gmt', 'july', 'june', 'accounting', 'total income', 'total expenses', 'total expense']):
             continue
             
         raw_val = str(r[val_col]).strip()
@@ -56,14 +58,15 @@ def parse_financial_sheet(path, column_keyword):
         def clean_num(v):
             s = str(v).replace('$', '').replace(',', '').replace('(', '-').replace(')', '').strip()
             try: return float(s) if s else 0.0
-            except: return None
+            except: return 0.0
             
         cleaned_val = clean_num(raw_val)
-        is_header = not has_gl_code and (cleaned_val is None or raw_val == "" or cleaned_val == 0.0)
+        # It's a structural group header if it doesn't have a numerical GL code prefix and no non-zero number
+        is_header = not has_gl_code and (cleaned_val == 0.0 or raw_val == "")
         
         rows.append({
             'account': label, 
-            'value': 0.0 if is_header else (cleaned_val if cleaned_val is not None else 0.0),
+            'value': 0.0 if is_header else cleaned_val,
             'is_header': is_header
         })
         
@@ -74,15 +77,13 @@ def main():
     f_p25 = find_file("25")
     f_sal = find_file("salary") or find_file("matrix")
     
-    # Explicitly pull 'actual' for FY25 and 'total' budget for FY26
     df_26 = parse_financial_sheet(f_b26, "total")
     df_25 = parse_financial_sheet(f_p25, "actual")
     
     if df_26.empty and df_25.empty:
-        print("Error: No data sets could be established.")
+        print("Error: Component data frames are unpopulated.")
         sys.exit(1)
         
-    # Standardize column labels before performing outer join merge
     df_26 = df_26.rename(columns={'value': 'v26', 'is_header': 'h26'})
     df_25 = df_25.rename(columns={'value': 'v25', 'is_header': 'h25'})
     
@@ -110,7 +111,6 @@ def main():
             md_table += f"| **{label}** | | | | Structural Group Header |\n"
             continue
             
-        # Target Gross Salaries & Wages line explicitly by its unique account code
         if '50610' in acct_low or 'gross salaries' in acct_low:
             prop = total_new_salaries if total_new_salaries > 0 else r['v26']
             note = f"Overridden using automated total parsed from 2027 Salary Matrix."
