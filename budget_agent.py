@@ -15,6 +15,7 @@ Output:
 Only dependency: openpyxl  ->  pip install openpyxl
 """
 
+import os
 import re
 import argparse
 from openpyxl import load_workbook
@@ -24,6 +25,10 @@ FY_PRIOR1 = "FY25.xlsx"            # FY2024-25  (older)
 FY_PRIOR2 = "FY26.xlsx"            # FY2025-26  (most recent actuals + template)
 SALARY_MATRIX = "2027_salary_matrix.xlsx"
 OUTPUT = "FY27_Projected_Budget.xlsx"
+
+# Folder the spreadsheets live in, relative to the repo root (leave "" if they
+# sit at the repo root next to the script). e.g. DATA_DIR = "data"
+DATA_DIR = ""
 
 # How NON-salary lines are projected:
 #   "yoy_growth" -> apply the FY25->FY26 growth rate to the FY26 actual (capped)
@@ -47,6 +52,42 @@ SECTIONS = {"Income", "Cost of Goods Sold", "Expenses",
 # ====================================================================
 
 NUM_RE = re.compile(r"^-?\d+(\.\d+)?$")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def resolve(name):
+    """Find an input file across the likely locations a CI job might run from.
+    Raises a FileNotFoundError that lists where it looked and what was there."""
+    if os.path.isabs(name):
+        if os.path.isfile(name):
+            return name
+        candidates = [name]
+    else:
+        bases = [DATA_DIR, os.getcwd(), SCRIPT_DIR,
+                 os.path.join(os.getcwd(), "data"),
+                 os.path.join(SCRIPT_DIR, "data")]
+        seen, candidates = set(), []
+        for b in bases:
+            if not b:
+                continue
+            c = os.path.join(b, name)
+            if c not in seen:
+                seen.add(c)
+                candidates.append(c)
+        for c in candidates:
+            if os.path.isfile(c):
+                return c
+    listing = []
+    for d in dict.fromkeys([os.getcwd(), SCRIPT_DIR]):
+        try:
+            files = sorted(os.listdir(d)) or ["<empty>"]
+        except OSError:
+            files = ["<unreadable>"]
+        listing.append(f"  {d}:\n    " + "\n    ".join(files))
+    raise FileNotFoundError(
+        f"Could not find '{name}'. Searched:\n  " + "\n  ".join(candidates)
+        + "\nFiles actually present:\n" + "\n".join(listing)
+    )
 
 
 def norm(s):
