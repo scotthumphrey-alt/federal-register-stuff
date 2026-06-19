@@ -63,7 +63,7 @@ Budget matrix generated successfully by local automation script engine.
 | 50520 Training & Documentation | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50600 Human Capital - Employees | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50610 Gross Salaries & Wages | $0.00 | $0.00 | $956,549.26 | Overridden using automated total parsed from 2027 Salary Matrix. |
-| 50620 Payroll Tax | $0.00 | $0.00 | $956,549.26 | Overridden using automated total parsed from 2027 Salary Matrix. |
+| 50620 Payroll Tax | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50630 Health Insurance | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50640 Benefits Administration Fees | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50650 Workers Comp Insurance | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
