@@ -139,8 +139,6 @@ Budget matrix generated successfully by local automation script engine.
 | **Total 9000 Other Income** | | | | Structural Group Header |
 | **Total 9100 Other Expense** | | | | Structural Group Header |
 | **Total Cost of Goods Sold** | | | | Structural Group Header |
-| **Total Expenses** | | | | Structural Group Header |
-| **Total Income** | | | | Structural Group Header |
 | **Total Other Expenses** | | | | Structural Group Header |
 | **Total Other Income** | | | | Structural Group Header |
 | **Uncategorized Expense** | | | | Structural Group Header |
