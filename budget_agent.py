@@ -13,14 +13,13 @@ def find_file(pattern):
     matched_files = [f for f in files if pattern.lower() in os.path.basename(f).lower()]
     return max(matched_files, key=os.path.getmtime) if matched_files else None
 
-def parse_financial_sheet(path):
+def parse_financial_sheet(path, column_keyword):
     if not path or not os.path.exists(path):
         return pd.DataFrame(columns=['account', 'value', 'is_header'])
         
     print(f"Parsing File: {path}")
     df_raw = pd.read_excel(path, header=None).fillna("") if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, header=None).fillna("")
     
-    # Locate where the data row headers live
     header_idx = 0
     for idx, row in df_raw.iterrows():
         row_str = " ".join([str(val).lower() for val in row])
@@ -33,37 +32,33 @@ def parse_financial_sheet(path):
     
     acct_col = df.columns[0]
     
-    # Grab the target budget column preferentially
-    val_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]
+    # Locate column dynamically by specific tracking requirement
+    val_col = None
     for col in df.columns:
-        if 'budget' in col and 'over' not in col and '%' not in col:
+        if column_keyword.lower() in col and 'over' not in col and '%' not in col:
             val_col = col
             break
-        elif 'total' in col or 'actual' in col:
-            val_col = col
+            
+    if not val_col:
+        val_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]
+
+    print(f"File Mapped -> Account Axis: [{acct_col}] | Target Financial Column: [{val_col}]")
 
     rows = []
     for _, r in df.iterrows():
         label = str(r[acct_col]).strip()
-        
-        # Completely drop footer timestamps, metadata system logs, or summary dividers
         if not label or any(k in label.lower() for k in ['income after', 'gross profit', 'guidelines', 'marine exchange', 'basis', 'gmt', 'july', 'june', 'accounting']):
             continue
             
         raw_val = str(r[val_col]).strip()
-        
-        # STRICT DESIGNATION RULE: If it starts with an accounting GL code digit, it is an active data row
         has_gl_code = bool(re.match(r'^\d+', label))
         
-        # If it has a real numeric value assigned, it is also a data row
         def clean_num(v):
             s = str(v).replace('$', '').replace(',', '').replace('(', '-').replace(')', '').strip()
             try: return float(s) if s else 0.0
             except: return None
             
         cleaned_val = clean_num(raw_val)
-        
-        # It's a header only if it lacks a GL code and contains no direct valid numeric input values
         is_header = not has_gl_code and (cleaned_val is None or raw_val == "" or cleaned_val == 0.0)
         
         rows.append({
@@ -79,27 +74,20 @@ def main():
     f_p25 = find_file("25")
     f_sal = find_file("salary") or find_file("matrix")
     
-    print(f"Matched Paths -> FY25: {f_p25} | FY26: {f_b26} | Salary: {f_sal}")
-    
-    df_26 = parse_financial_sheet(f_b26)
-    df_25 = parse_financial_sheet(f_p25)
+    # Explicitly pull 'actual' for FY25 and 'total' budget for FY26
+    df_26 = parse_financial_sheet(f_b26, "total")
+    df_25 = parse_financial_sheet(f_p25, "actual")
     
     if df_26.empty and df_25.empty:
-        print("Error: Empty account sets produced.")
+        print("Error: No data sets could be established.")
         sys.exit(1)
         
-    # Align rows side by side cleanly
-    if not df_26.empty and not df_25.empty:
-        master = pd.merge(df_26, df_25, on='account', how='outer').fillna({'value_x': 0.0, 'value_y': 0.0, 'is_header_x': True, 'is_header_y': True})
-        master['is_header'] = master['is_header_x'] & master['is_header_y']
-        master = master.rename(columns={'value_x': 'v26', 'value_y': 'v25'})
-    elif not df_26.empty:
-        master = df_26.rename(columns={'value': 'v26'})
-        master['v25'] = 0.0
-    else:
-        master = df_25.rename(columns={'value': 'v25'})
-        master['v26'] = 0.0
-        master['is_header'] = master['is_header']
+    # Standardize column labels before performing outer join merge
+    df_26 = df_26.rename(columns={'value': 'v26', 'is_header': 'h26'})
+    df_25 = df_25.rename(columns={'value': 'v25', 'is_header': 'h25'})
+    
+    master = pd.merge(df_26, df_25, on='account', how='outer').fillna({'v26': 0.0, 'v25': 0.0, 'h26': True, 'h25': True})
+    master['is_header'] = master['h26'] & master['h25']
 
     total_new_salaries = 0.0
     if f_sal:
@@ -118,15 +106,14 @@ def main():
         label = r['account']
         acct_low = label.lower()
         
-        # Check explicit formatting rules for structural headers versus numerical items
-        if r.get('is_header', False) or (any(k in acct_low for k in ['income', 'expense', 'assets', 'liabilities']) and not bool(re.match(r'^\d+', label))):
+        if r['is_header'] or (any(k in acct_low for k in ['income', 'expense', 'assets', 'liabilities']) and not bool(re.match(r'^\d+', label))):
             md_table += f"| **{label}** | | | | Structural Group Header |\n"
             continue
             
-        # Match payroll logic rules
-        if any(k in acct_low for k in ['salary', 'wages', '6100', 'payroll']):
+        # Target Gross Salaries & Wages line explicitly by its unique account code
+        if '50610' in acct_low or 'gross salaries' in acct_low:
             prop = total_new_salaries if total_new_salaries > 0 else r['v26']
-            note = f"Overridden using automated total parsed from 2027 Salary Matrix." if total_new_salaries > 0 else "Carried active target forward."
+            note = f"Overridden using automated total parsed from 2027 Salary Matrix."
         elif 'bonus' in acct_low or '6200' in acct_low:
             prop = 0.0
             note = "Discontinued per corporate operational directive."
