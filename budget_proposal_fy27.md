@@ -70,7 +70,7 @@ Budget matrix generated successfully by local automation script engine.
 | 50660 Employer 401K Contribution | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50670 Professional Development | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50700 Office | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
-| 50710 Furnishings  & Fixtures  < $2500 | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
+| 50710 Furnishings & Fixtures < $2500 | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50720 Office Supplies | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50730 Maintenance & Upkeep | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
 | 50740 Physical Security | $0.00 | $0.00 | $0.00 | Balanced to support active operational baseline targets. |
