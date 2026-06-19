@@ -13,13 +13,14 @@ def find_file(pattern):
     matched_files = [f for f in files if pattern.lower() in os.path.basename(f).lower()]
     return max(matched_files, key=os.path.getmtime) if matched_files else None
 
-def parse_financial_sheet(path, target_col_idx):
+def parse_financial_sheet(path, column_keyword):
     if not path or not os.path.exists(path):
         return pd.DataFrame(columns=['account', 'value', 'is_header'])
         
     print(f"Parsing File: {path}")
     df_raw = pd.read_excel(path, header=None).fillna("") if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, header=None).fillna("")
     
+    # Locate column labels row explicitly by tracking text elements
     header_idx = 0
     for idx, row in df_raw.iterrows():
         row_str = " ".join([str(val).lower() for val in row])
@@ -28,21 +29,27 @@ def parse_financial_sheet(path, target_col_idx):
             break
             
     df = pd.read_excel(path, skiprows=header_idx, keep_default_na=False) if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, skiprows=header_idx, keep_default_na=False)
+    df.columns = [str(c).strip().lower() for c in df.columns]
     
     acct_col = df.columns[0]
-    # Grab column explicitly by its absolute numerical positional index position
-    val_col = df.columns[target_col_idx] if len(df.columns) > target_col_idx else df.columns[1]
-
-    print(f"File Mapped -> Account Column: [{acct_col}] | Selected Data Column: [{val_col}]")
+    
+    # Isolate data column match dynamically
+    val_col = None
+    for col in df.columns:
+        if column_keyword.lower() in col and 'over' not in col and '%' not in col:
+            val_col = col
+            break
+    if not val_col:
+        val_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]
 
     rows = []
     for _, r in df.iterrows():
-        label = str(r[acct_col]).strip()
-        if not label or any(k in label.lower() for k in ['income after', 'gross profit', 'guidelines', 'marine exchange', 'gmt', 'july', 'june', 'accounting', 'total income', 'total expenses', 'total expense']):
+        raw_label = str(r[acct_col]).strip()
+        if not raw_label or any(k in raw_label.lower() for k in ['income after', 'gross profit', 'guidelines', 'marine exchange', 'gmt', 'july', 'june', 'accounting', 'total income', 'total expenses', 'total expense']):
             continue
             
         raw_val = str(r[val_col]).strip()
-        has_gl_code = bool(re.match(r'^\d+', label))
+        has_gl_code = bool(re.match(r'^\d+', raw_label))
         
         def clean_num(v):
             s = str(v).replace('$', '').replace(',', '').replace('(', '-').replace(')', '').strip()
@@ -52,8 +59,12 @@ def parse_financial_sheet(path, target_col_idx):
         cleaned_val = clean_num(raw_val)
         is_header = not has_gl_code and (cleaned_val == 0.0 or raw_val == "")
         
+        # KEY REVISION: Store clean_account without spaces to prevent structural alignment keys from breaking
+        clean_key = re.sub(r'\s+', ' ', raw_label).strip()
+        
         rows.append({
-            'account': label, 
+            'account_key': clean_key.lower(),
+            'account_display': clean_key,
             'value': 0.0 if is_header else cleaned_val,
             'is_header': is_header
         })
@@ -65,20 +76,22 @@ def main():
     f_p25 = find_file("25")
     f_sal = find_file("salary") or find_file("matrix")
     
-    # Force exact column slot indexing positions 
-    # Consolidated template has data in column slot 1. Budget vs Actuals has Actual in slot 1.
-    df_26 = parse_financial_sheet(f_b26, 1)
-    df_25 = parse_financial_sheet(f_p25, 1)
+    df_26 = parse_financial_sheet(f_b26, "total")
+    df_25 = parse_financial_sheet(f_p25, "actual")
     
     if df_26.empty and df_25.empty:
-        print("Error: Component data frames are empty.")
+        print("Error: Component data frames are missing valid rows.")
         sys.exit(1)
         
-    df_26 = df_26.rename(columns={'value': 'v26', 'is_header': 'h26'})
-    df_25 = df_25.rename(columns={'value': 'v25', 'is_header': 'h25'})
+    df_26 = df_26.rename(columns={'value': 'v26', 'is_header': 'h26', 'account_display': 'd26'})
+    df_25 = df_25.rename(columns={'value': 'v25', 'is_header': 'h25', 'account_display': 'd25'})
     
-    master = pd.merge(df_26, df_25, on='account', how='outer').fillna({'v26': 0.0, 'v25': 0.0, 'h26': True, 'h25': True})
+    # Merge side-by-side cleanly using the normalized lowercase account_key string entry
+    master = pd.merge(df_26, df_25, on='account_key', how='outer').fillna({'v26': 0.0, 'v25': 0.0, 'h26': True, 'h25': True})
     master['is_header'] = master['h26'] & master['h25']
+    
+    # Fallback assignment for row display names
+    master['account_name'] = master['d26'].fillna(master['d25'])
 
     total_new_salaries = 0.0
     if f_sal:
@@ -94,7 +107,7 @@ def main():
     md_table += "| :--- | :--- | :--- | :--- | :--- |\n"
     
     for _, r in master.iterrows():
-        label = r['account']
+        label = r['account_name']
         acct_low = label.lower()
         
         if r['is_header'] or (any(k in acct_low for k in ['income', 'expense', 'assets', 'liabilities']) and not bool(re.match(r'^\d+', label))):
