@@ -15,38 +15,34 @@ def load_budget_vs_actuals(path, prefix):
     if not path or not os.path.exists(path): 
         return pd.DataFrame()
         
-    print(f"Loading Report: {path}")
+    print(f"Loading Report File: {path}")
     
-    # Read raw rows to bypass the header title cards
-    df_raw = pd.read_excel(path, header=None).fillna("") if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, header=None).fillna("")
-    
-    header_idx = 0
-    for idx, row in df_raw.iterrows():
-        row_str = " ".join([str(val).lower() for val in row])
-        if "actual" in row_str and "budget" in row_str:
-            header_idx = idx
-            break
-            
-    df = pd.read_excel(path, skiprows=header_idx, keep_default_na=False) if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, skiprows=header_idx, keep_default_na=False)
+    # Read the data, treating the 6th row (index 5) as the column labels row directly
+    if path.endswith(('.xlsx', '.xls')):
+        df = pd.read_excel(path, skiprows=5, keep_default_na=False)
+    else:
+        df = pd.read_csv(path, skiprows=5, keep_default_na=False)
+        
     df.columns = [str(c).strip().lower() for c in df.columns]
+    print(f"Standardized Columns: {df.columns.tolist()}")
     
+    if len(df.columns) < 3:
+        print("Error: Sheet column footprint is smaller than expected.")
+        return pd.DataFrame()
+        
     acct_col = df.columns[0]
     
-    # Find the specific columns for actuals and budget targets
-    actual_col = next((c for c in df.columns if 'actual' in c), None)
-    budget_col = next((c for c in df.columns if 'budget' in c and 'over' not in c and '%' not in c), None)
-    
-    if not actual_col or not budget_col:
-        # Fallbacks if columns shift or map to default indexes
-        actual_col = df.columns[1] if len(df.columns) > 1 else None
-        budget_col = df.columns[2] if len(df.columns) > 2 else None
+    # Identify the correct column indexes explicitly from left to right positions
+    # Column 0: Account Names | Column 1: Actuals | Column 2: Budget Targets
+    actual_col = df.columns[1]
+    budget_col = df.columns[2]
 
-    print(f"Extracted Mapping Columns -> Actuals: [{actual_col}], Budget: [{budget_col}]")
+    print(f"Selected Columns -> Account Names: [{acct_col}], Actuals: [{actual_col}], Budget: [{budget_col}]")
 
     rows = []
     for _, r in df.iterrows():
         label = str(r[acct_col]).strip()
-        if not label or any(k in label.lower() for k in ['total', 'net', 'income after', 'gross profit', 'beginning balance', 'marine exchange']): 
+        if not label or any(k in label.lower() for k in ['total', 'net', 'income after', 'gross profit', 'beginning balance', 'marine exchange', 'actual', 'budget']): 
             continue
             
         def clean(v):
@@ -62,28 +58,23 @@ def load_budget_vs_actuals(path, prefix):
     return pd.DataFrame(rows)
 
 def main():
-    # Identify files by keyword tracking matches
-    f_data = find_file("Budget vs. Actuals") or find_file("PL")
+    # Target files dynamically based on your uploaded naming conventions
+    f_data = find_file("Actuals") or find_file("PL") or find_file("25")
     f_sal = find_file("salary") or find_file("matrix")
     
     if not f_data:
-        print("Error: Could not locate your Budget vs. Actuals sheet in financial_data/ folder.")
+        print("Error: Could not locate your budget file in financial_data/ folder.")
         sys.exit(1)
         
-    # Load and map columns
     master = load_budget_vs_actuals(f_data, "FY25")
     
     if master.empty:
-        print("Error: No transaction records extracted. Please check file row alignment.")
+        print("Error: Empty dataset generated during processing pass.")
         sys.exit(1)
         
-    # Project final close trends using the current actual performance
     master['FY25 Projected Close'] = master['FY25 Actual'].round(2)
-    
-    # Keep rows that have real money movement activity
     master = master[(master['FY25 Budget'] != 0) | (master['FY25 Actual'] != 0)]
     
-    # Load personnel reference adjustments if matrix sheet is present
     total_new_salaries = 0.0
     if f_sal:
         df_sal = pd.read_excel(f_sal, keep_default_na=False) if f_sal.endswith(('.xlsx', '.xls')) else pd.read_csv(f_sal, keep_default_na=False)
@@ -99,17 +90,12 @@ def main():
     for _, r in master.iterrows():
         acct = r['account'].lower()
         
-        # Override salary account codes with matrix metrics
         if any(k in acct for k in ['salary', 'wages', '6100', 'payroll']):
             proposed_vals.append(total_new_salaries if total_new_salaries > 0 else r['FY25 Projected Close'])
-            notes.append("Derived from 2027 Salary Matrix manual personnel baseline revisions." if total_new_salaries > 0 else "Carried active projection over.")
-            
-        # Clear bonus lines per operational policy guidelines
+            notes.append("Derived from 2027 Salary Matrix adjustments." if total_new_salaries > 0 else "Base runway close.")
         elif 'bonus' in acct or '6200' in acct:
             proposed_vals.append(0.0)
-            notes.append("Discontinued per corporate operational directive.")
-            
-        # Scale remaining operational columns by velocity activity
+            notes.append("Discontinued per directive.")
         else:
             proj = r['FY25 Projected Close']
             bud = r['FY25 Budget']
@@ -120,7 +106,6 @@ def main():
     master['FY27 Proposed Budget'] = proposed_vals
     master['Notes'] = notes
     
-    # Format layout strings for display presentation matrix
     for c in ['FY25 Budget', 'FY25 Actual', 'FY25 Projected Close', 'FY27 Proposed Budget']:
         master[c] = master[c].apply(lambda x: f"${x:,.2f}")
         
