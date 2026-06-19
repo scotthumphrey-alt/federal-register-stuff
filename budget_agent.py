@@ -1,145 +1,222 @@
-import os
-import sys
+#!/usr/bin/env python3
+"""
+Project an FY2026-27 budget for the Marine Exchange of the SF Bay Region.
+
+Inputs:
+  - FY2024-25 P&L  (older year, "Budget vs. Actuals" QuickBooks export)
+  - FY2025-26 P&L  (most recent actuals; also used as the output template)
+  - 2026-27 salary matrix (payroll already worked out)
+
+Output:
+  - FY27_Projected_Budget.xlsx  (same layout as the P&L; subtotals stay live
+    formulas and recompute when you open the file in Excel / Sheets)
+  - a printed summary table
+
+Only dependency: openpyxl  ->  pip install openpyxl
+"""
+
 import re
-import glob
-import pandas as pd
-from google import genai
+import argparse
+from openpyxl import load_workbook
 
-client = genai.Client()
+# ============================== CONFIG ==============================
+FY_PRIOR1 = "FY25.xlsx"            # FY2024-25  (older)
+FY_PRIOR2 = "FY26.xlsx"            # FY2025-26  (most recent actuals + template)
+SALARY_MATRIX = "2027_salary_matrix.xlsx"
+OUTPUT = "FY27_Projected_Budget.xlsx"
 
-def find_exact_file(prefix_pattern):
-    """Finds any file in financial_data starting with the pattern, regardless of suffix or extension format."""
-    search_path = os.path.join("financial_data", "*")
-    files = glob.glob(search_path)
-    matched = [f for f in files if prefix_pattern.lower() in os.path.basename(f).lower()]
-    return max(matched, key=os.path.getmtime) if matched else None
+# How NON-salary lines are projected:
+#   "yoy_growth" -> apply the FY25->FY26 growth rate to the FY26 actual (capped)
+#   "fy26_base"  -> use the FY26 actual as-is
+#   "average"    -> average of FY25 and FY26 actuals
+#   "flat"       -> FY26 actual * (1 + FLAT_BUMP)
+METHOD = "yoy_growth"
+GROWTH_CAP = 0.25                  # clamp extrapolated YoY growth to +/- this
+FLAT_BUMP = 0.03                   # used only when METHOD == "flat"
 
-def clean_num(v):
-    s = str(v).replace('$', '').replace(',', '').replace('(', '-').replace(')', '').strip()
-    try: return float(s) if s else 0.0
-    except: return 0.0
+# Salaries come from the matrix, not from projection.
+SALARY_ACCT = 50610                # 50610 Gross Salaries & Wages
+USE_SALARY_FIELD = "total_cost"    # "total_cost" (incl. half bonus) or "new_annual"
 
-def parse_qb_csv(path):
-    """Parses a QuickBooks data report row-by-row, identifying 'Actual' and 'Budget' column indices dynamically."""
-    if not path or not os.path.exists(path):
-        return {}, {}, {}
-        
-    print(f"Direct Parsing Engaged For: {path}")
-    actuals_map = {}
-    budgets_map = {}
-    displays_map = {}
-    
-    actual_idx = None
-    budget_idx = None
-    
-    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-        lines = [line.split(',') for line in f.readlines()]
-        
-    for row in lines:
-        clean_row = [str(cell).strip().lower() for cell in row]
-        
-        # Track the precise location of header values dynamically
-        if "actual" in clean_row and "budget" in clean_row:
-            actual_idx = clean_row.index("actual")
-            for c_idx, cell in enumerate(clean_row):
-                if cell == "budget":
-                    budget_idx = c_idx
-                    break
+# Expense lines that scale with gross wages (multiplied by the salary growth factor).
+PAYROLL_SCALED = {50620, 50650, 50660}   # payroll tax, workers comp, employer 401K
+
+PL_SHEET = "Budget vs. Actuals"
+SECTIONS = {"Income", "Cost of Goods Sold", "Expenses",
+            "Other Income", "Other Expenses"}
+# ====================================================================
+
+NUM_RE = re.compile(r"^-?\d+(\.\d+)?$")
+
+
+def norm(s):
+    return re.sub(r"\s+", " ", str(s)).strip()
+
+
+def acct_num(label):
+    m = re.match(r"\s*(\d{3,6})\b", str(label or ""))
+    return int(m.group(1)) if m else None
+
+
+def leaf_value(raw):
+    """Return a float if the cell is a numeric literal ('=99715.47' or 0.0),
+    or None if it is empty / a real formula (subtotal, reference, etc.)."""
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)):
+        return float(raw)
+    s = str(raw).strip()
+    if s.startswith("="):
+        s = s[1:].strip()
+    return float(s) if NUM_RE.match(s) else None
+
+
+def read_actuals(path):
+    """{normalized_label: {'acct': int|None, 'actual': float}} for leaf rows only."""
+    wb = load_workbook(path, data_only=False)
+    ws = wb[PL_SHEET] if PL_SHEET in wb.sheetnames else wb.active
+    out = {}
+    for r in range(1, ws.max_row + 1):
+        a = ws.cell(r, 1).value
+        if a is None:
             continue
-            
-        if actual_idx is not None and budget_idx is not None:
-            if len(row) == 0:
-                continue
-            label = str(row[0]).strip()
-            if not label or any(k in label.lower() for k in ['total income', 'total expense', 'gross profit', 'net income', 'net operating']):
-                continue
-                
-            gl_match = re.search(r'^\s*(\d+)', label)
-            if gl_match:
-                gl = gl_match.group(1)
-                act_val = row[actual_idx] if actual_idx < len(row) else "0"
-                bud_val = row[budget_idx] if budget_idx < len(row) else "0"
-                
-                actuals_map[gl] = clean_num(act_val)
-                budgets_map[gl] = clean_num(bud_val)
-                displays_map[gl] = re.sub(r'\s+', ' ', label).strip()
-                
-    return actuals_map, budgets_map, displays_map
+        v = leaf_value(ws.cell(r, 2).value)   # column B = Actual
+        if v is None:
+            continue
+        out[norm(a)] = {"acct": acct_num(a), "actual": v}
+    return out
+
+
+def read_salary(path):
+    """Return (new_annual_total, total_salary_cost) from the matrix Totals row."""
+    wb = load_workbook(path, data_only=True)
+    ws = wb.active
+    for r in range(1, ws.max_row + 1):
+        if norm(ws.cell(r, 2).value or "") == "Totals":
+            new_annual = float(ws.cell(r, 7).value or 0)        # col G
+            total_cost = ws.cell(r, 9).value                    # col I
+            if not total_cost:                                  # fall back to G + H
+                total_cost = new_annual + float(ws.cell(r, 8).value or 0)
+            return new_annual, float(total_cost)
+    raise ValueError("Could not find the 'Totals' row in the salary matrix.")
+
+
+def project(label, acct, p1, p2, salary_value, salary_factor):
+    if acct == SALARY_ACCT:
+        return round(salary_value, 2)
+
+    base2 = p2.get(label, {}).get("actual")   # FY26 actual
+    base1 = p1.get(label, {}).get("actual")   # FY25 actual
+    if base2 is None and base1 is None:
+        return None
+    if base2 is None:
+        base2 = base1
+
+    if acct in PAYROLL_SCALED:
+        return round(base2 * salary_factor, 2)
+    if METHOD == "fy26_base":
+        return round(base2, 2)
+    if METHOD == "average" and base1 is not None:
+        return round((base1 + base2) / 2, 2)
+    if METHOD == "flat":
+        return round(base2 * (1 + FLAT_BUMP), 2)
+
+    # default: yoy_growth
+    if base1:
+        g = (base2 - base1) / abs(base1)
+        g = max(-GROWTH_CAP, min(GROWTH_CAP, g))
+        return round(base2 * (1 + g), 2)
+    return round(base2, 2)
+
+
+def build():
+    p1 = read_actuals(FY_PRIOR1)
+    p2 = read_actuals(FY_PRIOR2)
+    new_annual, total_cost = read_salary(SALARY_MATRIX)
+    salary_value = total_cost if USE_SALARY_FIELD == "total_cost" else new_annual
+
+    sal_fy26 = next((d["actual"] for d in p2.values()
+                     if d["acct"] == SALARY_ACCT), None)
+    salary_factor = (salary_value / sal_fy26) if sal_fy26 else 1.0
+
+    # Use FY26 file as the template so structure + subtotal formulas are preserved.
+    wb = load_workbook(FY_PRIOR2, data_only=False)
+    ws = wb[PL_SHEET] if PL_SHEET in wb.sheetnames else wb.active
+
+    sect = {s: 0.0 for s in SECTIONS}
+    current = None
+    for r in range(1, ws.max_row + 1):
+        a = ws.cell(r, 1).value
+        if a is None:
+            continue
+        label = norm(a)
+        if label in SECTIONS:
+            current = label
+        if leaf_value(ws.cell(r, 2).value) is None:
+            continue   # header / subtotal / total -> leave formula intact
+        pv = project(label, acct_num(a), p1, p2, salary_value, salary_factor)
+        if pv is None:
+            continue
+        ws.cell(r, 2).value = pv
+        if current:
+            sect[current] += pv
+
+    # Relabel headers/title for the projected budget.
+    ws.cell(2, 1).value = "Projected Budget: FY2026-27 (generated)"
+    ws.cell(3, 1).value = "July 2026 - June 2027"
+    if norm(ws.cell(6, 2).value or "").lower() == "actual":
+        ws.cell(6, 2).value = "FY27 Projected"
+        ws.cell(6, 3).value = "FY26 Budget"
+        ws.cell(6, 4).value = "vs FY26 Budget"
+        ws.cell(6, 5).value = "% of FY26 Budget"
+
+    wb.save(OUTPUT)
+
+    income = sect["Income"]
+    cogs = sect["Cost of Goods Sold"]
+    expenses = sect["Expenses"]
+    oth_inc = sect["Other Income"]
+    oth_exp = sect["Other Expenses"]
+    gross = income - cogs
+    noi = gross - expenses
+    net = noi + oth_inc - oth_exp
+
+    print("FY2026-27 PROJECTED BUDGET  (Marine Exchange of the SF Bay Region)")
+    print(f"  Method: {METHOD}   Salary source: matrix '{USE_SALARY_FIELD}' = {salary_value:,.2f}")
+    print(f"  Salary scale factor (FY27/FY26 wages): {salary_factor:.4f}")
+    print("-" * 52)
+    for name, val in [
+        ("Total Income", income),
+        ("Total Cost of Goods Sold", cogs),
+        ("Gross Profit", gross),
+        ("Total Expenses", expenses),
+        ("Net Operating Income", noi),
+        ("Total Other Income", oth_inc),
+        ("Total Other Expenses", oth_exp),
+        ("NET INCOME", net),
+    ]:
+        print(f"  {name:<28} {val:>15,.2f}")
+    print("-" * 52)
+    print(f"  Saved: {OUTPUT}")
+
 
 def main():
-    # Use robust wildcard mapping to absorb whatever extension or suffix is present
-    f_p26 = find_exact_file("fy26")
-    f_p25 = find_exact_file("fy25")
-    f_sal = find_exact_file("salary") or find_exact_file("matrix") or os.path.join("financial_data", "2027_salary_matrix.xlsx")
-    
-    if not f_p26 or not f_p25:
-        print(f"Error: Missing targeted financial data matching patterns. (Found FY25: {f_p25}, FY26: {f_p26})")
-        sys.exit(1)
-        
-    fy25_acts, _, _ = parse_qb_csv(f_p25)
-    fy26_acts, fy26_buds, fy26_displays = parse_qb_csv(f_p26)
-    
-    all_gls = sorted(list(set(list(fy26_displays.keys()) + list(fy25_acts.keys()))), key=lambda x: int(x) if x.isdigit() else 99999)
-    
-    if not all_gls:
-        print("Error: Account extraction generated empty row mappings.")
-        sys.exit(1)
-        
-    total_new_salaries = 0.0
-    if f_sal and os.path.exists(f_sal):
-        print(f"Extracting salary overrides from: {f_sal}")
-        df_sal = pd.read_excel(f_sal, keep_default_na=False)
-        df_sal.columns = [str(c).lower().strip() for c in df_sal.columns]
-        sal_col = next((c for c in df_sal.columns if any(k in c for k in ['salary', 'new', 'pay', 'annual', 'total'])), df_sal.columns[-1])
-        for _, r in df_sal.iterrows():
-            s_str = str(r[sal_col]).replace('$', '').replace(',', '').strip()
-            try: total_new_salaries += float(s_str) if s_str else 0.0
-            except: pass
+    global FY_PRIOR1, FY_PRIOR2, SALARY_MATRIX, OUTPUT, METHOD
+    ap = argparse.ArgumentParser(description="Project FY2026-27 budget.")
+    ap.add_argument("--prior1", help="older P&L (FY2024-25)")
+    ap.add_argument("--prior2", help="recent P&L (FY2025-26)")
+    ap.add_argument("--salary", help="salary matrix xlsx")
+    ap.add_argument("--output", help="output xlsx")
+    ap.add_argument("--method",
+                    choices=["yoy_growth", "fy26_base", "average", "flat"])
+    args = ap.parse_args()
+    FY_PRIOR1 = args.prior1 or FY_PRIOR1
+    FY_PRIOR2 = args.prior2 or FY_PRIOR2
+    SALARY_MATRIX = args.salary or SALARY_MATRIX
+    OUTPUT = args.output or OUTPUT
+    METHOD = args.method or METHOD
+    build()
 
-    md_table = "| Account Item | FY25 Actuals | FY26 Budget Baseline | FY27 Proposed Budget | Notes |\n"
-    md_table += "| :--- | :--- | :--- | :--- | :--- |\n"
-    
-    for gl in all_gls:
-        label = fy26_displays.get(gl, f"{gl} Account")
-        acct_low = label.lower()
-        
-        v25 = fy25_acts.get(gl, 0.0)
-        v26 = fy26_buds.get(gl, 0.0)
-        
-        clean_label = re.sub(r'\s+', ' ', label).strip()
-        
-        if gl == '50610' or 'gross salaries' in acct_low:
-            prop = total_new_salaries if total_new_salaries > 0 else v26
-            note = "Overridden using automated total parsed from 2027 Salary Matrix."
-        elif gl == '6200' or 'bonus' in acct_low:
-            prop = 0.0
-            note = "Discontinued per corporate operational directive."
-        else:
-            prop = v26 if v26 > v25 else v25
-            note = "Balanced to support active operational baseline targets."
-            
-        v25_str = f"${v25:,.2f}" if v25 != 0 else "$0.00"
-        v26_str = f"${v26:,.2f}" if v26 != 0 else "$0.00"
-        prop_str = f"${prop:,.2f}" if prop != 0 else "$0.00"
-        
-        md_table += f"| {clean_label} | {v25_str} | {v26_str} | {prop_str} | {note} |\n"
-
-    summary_prompt = f"Write a professional 3-sentence CFO executive summary review for this upcoming fiscal year budget proposal:\n\n{md_table}"
-    try:
-        response = client.models.generate_content(model='gemini-2.5-flash', contents=summary_prompt)
-        analysis_text = response.text
-    except Exception:
-        analysis_text = "Budget matrix generated successfully by local automation script engine."
-
-    final_report = f"# FY2027 Recommended Fiscal Budget Proposal\n\n## Executive Analysis Summary\n{analysis_text}\n\n## Budget Comparison Matrix\n\n{md_table}"
-    
-    with open("budget_proposal_fy27.md", "w", encoding="utf-8") as f:
-        f.write(final_report)
-        
-    s_env = os.environ.get('GITHUB_STEP_SUMMARY')
-    if s_env:
-        with open(s_env, "w", encoding="utf-8") as f:
-            f.write(final_report)
 
 if __name__ == "__main__":
     main()
