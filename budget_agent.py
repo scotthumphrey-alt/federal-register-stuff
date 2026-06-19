@@ -18,84 +18,31 @@ def clean_num(v):
     try: return float(s) if s else 0.0
     except: return 0.0
 
-def parse_pl_sheet(path):
-    """Parses a QuickBooks Budget vs Actuals report extracting live columns by index."""
-    if not path or not os.path.exists(path):
-        return {}, {}
-        
-    print(f"Processing P&L Report: {path}")
-    df_raw = pd.read_excel(path, header=None).fillna("") if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, header=None).fillna("")
+def main():
+    f_master = find_file("Budget_FY26_P&L")
+    f_sal = find_file("salary") or find_file("matrix")
     
-    # Locate column labels row explicitly (skip the decorative title banners)
+    if not f_master:
+        print("Error: Could not find the core Budget_FY26_P&L source data file.")
+        sys.exit(1)
+        
+    print(f"Loading Source Foundation: {f_master}")
+    df_raw = pd.read_excel(f_master, header=None).fillna("") if f_master.endswith(('.xlsx', '.xls')) else pd.read_csv(f_master, header=None).fillna("")
+    
+    # Locate where the actual QuickBooks account columns begin
     header_idx = 0
     for idx, row in df_raw.iterrows():
         row_str = " ".join([str(v).lower() for v in row])
-        if "actual" in row_str and "budget" in row_str:
+        if "accounts" in row_str or "budget" in row_str:
             header_idx = idx
             break
             
-    df = pd.read_excel(path, skiprows=header_idx, keep_default_na=False) if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, skiprows=header_idx, keep_default_na=False)
+    df = pd.read_excel(f_master, skiprows=header_idx, keep_default_na=False) if f_master.endswith(('.xlsx', '.xls')) else pd.read_csv(f_master, skiprows=header_idx, keep_default_na=False)
     
-    actuals_map = {}
-    budgets_map = {}
-    
-    for _, r in df.iterrows():
-        label = str(r.iloc[0]).strip()
-        if not label or any(k in label.lower() for k in ['total income', 'total expense', 'gross profit', 'net income', 'net operating']):
-            continue
-            
-        gl_match = re.search(r'\d+', label)
-        if gl_match:
-            gl = gl_match.group(0)
-            # Positional matching: Column index 1 is Actuals, Column index 2 is Budget
-            actuals_map[gl] = clean_num(r.iloc[1])
-            budgets_map[gl] = clean_num(r.iloc[2])
-            
-    return actuals_map, budgets_map
-
-def main():
-    f_b26 = find_file("Budget_FY26")
-    f_p26 = find_file("FY26+PL+")
-    f_p25 = find_file("FY25+PL+")
-    f_sal = find_file("salary") or find_file("matrix")
-    
-    # 1. Parse the primary layout structure from the template master
-    if not f_b26:
-        print("Error: Missing primary Budget_FY26 baseline layout reference sheet.")
-        sys.exit(1)
-        
-    df26_raw = pd.read_excel(f_b26, header=None).fillna("") if f_b26.endswith(('.xlsx', '.xls')) else pd.read_csv(f_b26, header=None).fillna("")
-    
-    h26_idx = 0
-    for idx, row in df26_raw.iterrows():
-        if "budget" in "".join([str(v).lower() for v in row]):
-            h26_idx = idx
-            break
-    df26_template = pd.read_excel(f_b26, skiprows=h26_idx, keep_default_na=False) if f_b26.endswith(('.xlsx', '.xls')) else pd.read_csv(f_b26, skiprows=h26_idx, keep_default_na=False)
-    
-    fy26_template_targets = {}
-    account_displays = {}
-    ordered_gls = []
-    
-    for _, r in df26_template.iterrows():
-        label = str(r.iloc[0]).strip()
-        if not label or any(k in label.lower() for k in ['total income', 'total expense', 'gross profit', 'net income']):
-            continue
-        gl_match = re.search(r'\d+', label)
-        if gl_match:
-            gl = gl_match.group(0)
-            fy26_template_targets[gl] = clean_num(r.iloc[1])
-            account_displays[gl] = re.sub(r'\s+', ' ', label).strip()
-            if gl not in ordered_gls:
-                ordered_gls.append(gl)
-
-    # 2. Extract quantitative historical columns from live reports
-    fy25_actuals, _ = parse_pl_sheet(f_p25)
-    fy26_actuals, fy26_report_budgets = parse_pl_sheet(f_p26)
-    
-    # 3. Pull target from separate Salary Matrix file
+    # Load personnel configurations from your separate Salary Matrix file
     total_new_salaries = 0.0
     if f_sal:
+        print(f"Loading Salary Matrix Reference: {f_sal}")
         df_sal = pd.read_excel(f_sal, keep_default_na=False) if f_sal.endswith(('.xlsx', '.xls')) else pd.read_csv(f_sal, keep_default_na=False)
         df_sal.columns = [str(c).lower().strip() for c in df_sal.columns]
         sal_col = next((c for c in df_sal.columns if any(k in c for k in ['salary', 'new', 'pay', 'annual', 'total'])), df_sal.columns[-1])
@@ -104,20 +51,27 @@ def main():
             try: total_new_salaries += float(s_str) if s_str else 0.0
             except: pass
 
-    # 4. Generate the Matrix Output Row by Row preserving template structure
-    md_table = "| Account Item | FY25 Actuals | FY26 Budget Baseline | FY27 Proposed Budget | Notes |\n"
-    md_table += "| :--- | :--- | :--- | :--- | :--- |\n"
+    md_table = "| Account Item | FY26 Budget Baseline | FY27 Proposed Budget | Notes |\n"
+    md_table += "| :--- | :--- | :--- | :--- |\n"
     
-    for gl in ordered_gls:
-        label = account_displays[gl]
+    for _, r in df.iterrows():
+        label = str(r.iloc[0]).strip()
+        if not label or any(k in label.lower() for k in ['total income', 'total expense', 'gross profit', 'net income', 'net operating', 'company name', 'budget name']):
+            continue
+            
+        gl_match = re.search(r'\d+', label)
+        gl = gl_match.group(0) if gl_match else ""
         acct_low = label.lower()
         
-        # Pull values securely by checking dictionaries using the GL code number
-        v25 = fy25_actuals.get(gl, 0.0)
-        # Use template target first; fall back to report budget if empty
-        v26 = fy26_template_targets.get(gl, 0.0) if fy26_template_targets.get(gl, 0.0) != 0 else fy26_report_budgets.get(gl, 0.0)
+        # Read the baseline value from the template column
+        v26 = clean_num(r.iloc[1])
         
-        # Explicit routing rules
+        # Format structural grouping rows cleanly
+        if gl == "" and v26 == 0.0:
+            md_table += f"| **{re.sub(r's+', ' ', label).strip()}** | | | Structural Group Header |\n"
+            continue
+            
+        # Core operational budget routing logic
         if gl == '50610' or 'gross salaries' in acct_low:
             prop = total_new_salaries if total_new_salaries > 0 else v26
             note = "Overridden using automated total parsed from 2027 Salary Matrix."
@@ -125,15 +79,15 @@ def main():
             prop = 0.0
             note = "Discontinued per corporate operational directive."
         else:
-            # Use active operational baseline velocity parameters
-            prop = v26 if v26 > v25 else v25
-            note = "Balanced to support active operational baseline targets."
+            # Baseline target preservation mapping
+            prop = v26
+            note = "Carried forward to preserve baseline operational parameters."
             
-        v25_str = f"${v25:,.2f}" if v25 != 0 else "$0.00"
         v26_str = f"${v26:,.2f}" if v26 != 0 else "$0.00"
         prop_str = f"${prop:,.2f}" if prop != 0 else "$0.00"
+        display_label = re.sub(r'\s+', ' ', label).strip()
         
-        md_table += f"| {label} | {v25_str} | {v26_str} | {prop_str} | {note} |\n"
+        md_table += f"| {display_label} | {v26_str} | {prop_str} | {note} |\n"
 
     summary_prompt = f"Write a professional 3-sentence CFO executive summary review for this upcoming fiscal year budget proposal:\n\n{md_table}"
     try:
