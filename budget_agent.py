@@ -15,12 +15,11 @@ def find_file(pattern):
 
 def parse_financial_sheet(path, column_keyword):
     if not path or not os.path.exists(path):
-        return pd.DataFrame(columns=['account', 'value', 'is_header'])
+        return pd.DataFrame(columns=['gl_account', 'account_display', 'value', 'is_header'])
         
     print(f"Parsing File: {path}")
     df_raw = pd.read_excel(path, header=None).fillna("") if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, header=None).fillna("")
     
-    # Locate column labels row explicitly by tracking text elements
     header_idx = 0
     for idx, row in df_raw.iterrows():
         row_str = " ".join([str(val).lower() for val in row])
@@ -33,7 +32,6 @@ def parse_financial_sheet(path, column_keyword):
     
     acct_col = df.columns[0]
     
-    # Isolate data column match dynamically
     val_col = None
     for col in df.columns:
         if column_keyword.lower() in col and 'over' not in col and '%' not in col:
@@ -49,7 +47,10 @@ def parse_financial_sheet(path, column_keyword):
             continue
             
         raw_val = str(r[val_col]).strip()
-        has_gl_code = bool(re.match(r'^\d+', raw_label))
+        
+        # Pull out the first contiguous string of digits to use as the GL account key
+        gl_match = re.search(r'\d+', raw_label)
+        gl_account = gl_match.group(0) if gl_match else ""
         
         def clean_num(v):
             s = str(v).replace('$', '').replace(',', '').replace('(', '-').replace(')', '').strip()
@@ -57,14 +58,11 @@ def parse_financial_sheet(path, column_keyword):
             except: return 0.0
             
         cleaned_val = clean_num(raw_val)
-        is_header = not has_gl_code and (cleaned_val == 0.0 or raw_val == "")
-        
-        # KEY REVISION: Store clean_account without spaces to prevent structural alignment keys from breaking
-        clean_key = re.sub(r'\s+', ' ', raw_label).strip()
+        is_header = (gl_account == "")
         
         rows.append({
-            'account_key': clean_key.lower(),
-            'account_display': clean_key,
+            'gl_account': gl_account,
+            'account_display': re.sub(r'\s+', ' ', raw_label).strip(),
             'value': 0.0 if is_header else cleaned_val,
             'is_header': is_header
         })
@@ -83,15 +81,32 @@ def main():
         print("Error: Component data frames are missing valid rows.")
         sys.exit(1)
         
-    df_26 = df_26.rename(columns={'value': 'v26', 'is_header': 'h26', 'account_display': 'd26'})
-    df_25 = df_25.rename(columns={'value': 'v25', 'is_header': 'h25', 'account_display': 'd25'})
+    # Isolate data rows from structural parent categories
+    data_26 = df_26[df_26['gl_account'] != '']
+    data_25 = df_25[df_25['gl_account'] != '']
     
-    # Merge side-by-side cleanly using the normalized lowercase account_key string entry
-    master = pd.merge(df_26, df_25, on='account_key', how='outer').fillna({'v26': 0.0, 'v25': 0.0, 'h26': True, 'h25': True})
-    master['is_header'] = master['h26'] & master['h25']
+    headers_26 = df_26[df_26['gl_account'] == '']
+    headers_25 = df_25[df_25['gl_account'] == '']
     
-    # Fallback assignment for row display names
-    master['account_name'] = master['d26'].fillna(master['d25'])
+    # Merge quantitative values strictly matching on numerical GL codes
+    data_merged = pd.merge(data_26, data_25, on='gl_account', how='outer').fillna({'value_x': 0.0, 'value_y': 0.0})
+    data_merged['account_name'] = data_merged['account_display_x'].fillna(data_merged['account_display_y'])
+    data_merged = data_merged.rename(columns={'value_x': 'v26', 'value_y': 'v25'})
+    data_merged['is_header'] = False
+    
+    # Process headers list for structural mapping layout
+    all_headers = pd.concat([headers_26, headers_25]).drop_duplicates(subset=['account_display'])
+    all_headers = all_headers.rename(columns={'account_display': 'account_name', 'value': 'v26'})
+    all_headers['v25'] = 0.0
+    all_headers['is_header'] = True
+    all_headers['gl_account'] = ''
+    
+    # Combine structural names and numeric maps together
+    master = pd.concat([data_merged[['gl_account', 'account_name', 'v26', 'v25', 'is_header']], all_headers[['gl_account', 'account_name', 'v26', 'v25', 'is_header']]])
+    
+    # Sort logically so sub-accounts drop neatly underneath group headers
+    master['sort_key'] = master.apply(lambda r: r['gl_account'] if r['gl_account'] != '' else r['account_name'], axis=1)
+    master = master.sort_values(by='sort_key').drop_duplicates(subset=['account_name'], keep='first')
 
     total_new_salaries = 0.0
     if f_sal:
@@ -108,16 +123,16 @@ def main():
     
     for _, r in master.iterrows():
         label = r['account_name']
-        acct_low = label.lower()
+        gl = r['gl_account']
         
-        if r['is_header'] or (any(k in acct_low for k in ['income', 'expense', 'assets', 'liabilities']) and not bool(re.match(r'^\d+', label))):
+        if r['is_header'] or gl == '':
             md_table += f"| **{label}** | | | | Structural Group Header |\n"
             continue
             
-        if '50610' in acct_low or 'gross salaries' in acct_low:
+        if gl == '50610' or 'gross salaries' in label.lower():
             prop = total_new_salaries if total_new_salaries > 0 else r['v26']
             note = f"Overridden using automated total parsed from 2027 Salary Matrix."
-        elif 'bonus' in acct_low or '6200' in acct_low:
+        elif gl == '6200' or 'bonus' in label.lower():
             prop = 0.0
             note = "Discontinued per corporate operational directive."
         else:
