@@ -13,38 +13,27 @@ def find_file(pattern):
     matched_files = [f for f in files if pattern.lower() in os.path.basename(f).lower()]
     return max(matched_files, key=os.path.getmtime) if matched_files else None
 
-def parse_financial_sheet(path, column_keyword):
+def parse_financial_sheet(path, target_col_idx):
     if not path or not os.path.exists(path):
         return pd.DataFrame(columns=['account', 'value', 'is_header'])
         
     print(f"Parsing File: {path}")
     df_raw = pd.read_excel(path, header=None).fillna("") if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, header=None).fillna("")
     
-    # Locate the true column label row by looking for a row with multiple business headers
     header_idx = 0
     for idx, row in df_raw.iterrows():
         row_str = " ".join([str(val).lower() for val in row])
-        # Ensure we don't trip on the title banner by requiring at least two distinctive keywords
         if ("actual" in row_str and "budget" in row_str) or ("accounts" in row_str and "totals" in row_str):
             header_idx = idx
             break
             
     df = pd.read_excel(path, skiprows=header_idx, keep_default_na=False) if path.endswith(('.xlsx', '.xls')) else pd.read_csv(path, skiprows=header_idx, keep_default_na=False)
-    df.columns = [str(c).strip().lower() for c in df.columns]
     
     acct_col = df.columns[0]
-    
-    # Target the correct data column dynamically
-    val_col = None
-    for col in df.columns:
-        if column_keyword.lower() in col and 'over' not in col and '%' not in col:
-            val_col = col
-            break
-            
-    if not val_col:
-        val_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]
+    # Grab column explicitly by its absolute numerical positional index position
+    val_col = df.columns[target_col_idx] if len(df.columns) > target_col_idx else df.columns[1]
 
-    print(f"Successfully Mapped -> Account Axis: [{acct_col}] | Target Value Column: [{val_col}]")
+    print(f"File Mapped -> Account Column: [{acct_col}] | Selected Data Column: [{val_col}]")
 
     rows = []
     for _, r in df.iterrows():
@@ -61,7 +50,6 @@ def parse_financial_sheet(path, column_keyword):
             except: return 0.0
             
         cleaned_val = clean_num(raw_val)
-        # It's a structural group header if it doesn't have a numerical GL code prefix and no non-zero number
         is_header = not has_gl_code and (cleaned_val == 0.0 or raw_val == "")
         
         rows.append({
@@ -77,11 +65,13 @@ def main():
     f_p25 = find_file("25")
     f_sal = find_file("salary") or find_file("matrix")
     
-    df_26 = parse_financial_sheet(f_b26, "total")
-    df_25 = parse_financial_sheet(f_p25, "actual")
+    # Force exact column slot indexing positions 
+    # Consolidated template has data in column slot 1. Budget vs Actuals has Actual in slot 1.
+    df_26 = parse_financial_sheet(f_b26, 1)
+    df_25 = parse_financial_sheet(f_p25, 1)
     
     if df_26.empty and df_25.empty:
-        print("Error: Component data frames are unpopulated.")
+        print("Error: Component data frames are empty.")
         sys.exit(1)
         
     df_26 = df_26.rename(columns={'value': 'v26', 'is_header': 'h26'})
