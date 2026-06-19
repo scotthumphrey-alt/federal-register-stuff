@@ -1,10 +1,18 @@
 import os
 import sys
 import re
+import glob
 import pandas as pd
 from google import genai
 
 client = genai.Client()
+
+def find_exact_file(prefix_pattern):
+    """Finds any file in financial_data starting with the pattern, regardless of suffix or extension format."""
+    search_path = os.path.join("financial_data", "*")
+    files = glob.glob(search_path)
+    matched = [f for f in files if prefix_pattern.lower() in os.path.basename(f).lower()]
+    return max(matched, key=os.path.getmtime) if matched else None
 
 def clean_num(v):
     s = str(v).replace('$', '').replace(',', '').replace('(', '-').replace(')', '').strip()
@@ -12,11 +20,11 @@ def clean_num(v):
     except: return 0.0
 
 def parse_qb_csv(path):
-    """Parses a QuickBooks CSV row-by-row, identifying 'Actual' and 'Budget' column indices explicitly."""
+    """Parses a QuickBooks data report row-by-row, identifying 'Actual' and 'Budget' column indices dynamically."""
     if not path or not os.path.exists(path):
         return {}, {}, {}
         
-    print(f"Parsing File: {path}")
+    print(f"Direct Parsing Engaged For: {path}")
     actuals_map = {}
     budgets_map = {}
     displays_map = {}
@@ -30,7 +38,7 @@ def parse_qb_csv(path):
     for row in lines:
         clean_row = [str(cell).strip().lower() for cell in row]
         
-        # Identify the header labels row precisely
+        # Track the precise location of header values dynamically
         if "actual" in clean_row and "budget" in clean_row:
             actual_idx = clean_row.index("actual")
             for c_idx, cell in enumerate(clean_row):
@@ -59,19 +67,18 @@ def parse_qb_csv(path):
     return actuals_map, budgets_map, displays_map
 
 def main():
-    # DEFINITIVE FILE ASSIGNMENTS: Locked exactly onto your updated clean file paths
-    f_p26 = os.path.join("financial_data", "FY26.xlsx")
-    f_p25 = os.path.join("financial_data", "FY25.xlsx")
-    f_sal = os.path.join("financial_data", "2027_salary_matrix.xlsx")
+    # Use robust wildcard mapping to absorb whatever extension or suffix is present
+    f_p26 = find_exact_file("fy26")
+    f_p25 = find_exact_file("fy25")
+    f_sal = find_exact_file("salary") or find_exact_file("matrix") or os.path.join("financial_data", "2027_salary_matrix.xlsx")
     
-    if not os.path.exists(f_p26) or not os.path.exists(f_p25):
-        print(f"Error: Missing required financial data sheets. (Looking for: {f_p25} and {f_p26})")
+    if not f_p26 or not f_p25:
+        print(f"Error: Missing targeted financial data matching patterns. (Found FY25: {f_p25}, FY26: {f_p26})")
         sys.exit(1)
         
     fy25_acts, _, _ = parse_qb_csv(f_p25)
     fy26_acts, fy26_buds, fy26_displays = parse_qb_csv(f_p26)
     
-    # Establish master unique account general ledger index sets
     all_gls = sorted(list(set(list(fy26_displays.keys()) + list(fy25_acts.keys()))), key=lambda x: int(x) if x.isdigit() else 99999)
     
     if not all_gls:
@@ -79,7 +86,8 @@ def main():
         sys.exit(1)
         
     total_new_salaries = 0.0
-    if os.path.exists(f_sal):
+    if f_sal and os.path.exists(f_sal):
+        print(f"Extracting salary overrides from: {f_sal}")
         df_sal = pd.read_excel(f_sal, keep_default_na=False)
         df_sal.columns = [str(c).lower().strip() for c in df_sal.columns]
         sal_col = next((c for c in df_sal.columns if any(k in c for k in ['salary', 'new', 'pay', 'annual', 'total'])), df_sal.columns[-1])
@@ -98,10 +106,8 @@ def main():
         v25 = fy25_acts.get(gl, 0.0)
         v26 = fy26_buds.get(gl, 0.0)
         
-        # Normalize the display text completely outside of the f-string block
         clean_label = re.sub(r'\s+', ' ', label).strip()
         
-        # Corporate allocation policies routing logic
         if gl == '50610' or 'gross salaries' in acct_low:
             prop = total_new_salaries if total_new_salaries > 0 else v26
             note = "Overridden using automated total parsed from 2027 Salary Matrix."
