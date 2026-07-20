@@ -1,17 +1,17 @@
-# Compiled Corporate & Agency Intelligence Digest - July 13, 2026
+# Compiled Corporate & Agency Intelligence Digest - July 20, 2026
 
 | Entity Name | Corporate Headquarters | Executive Leadership | Operational Profile / Footprint |
 | :--- | :--- | :--- | :--- |
-| Flexport | San Francisco, California, US | Ryan Petersen | Offers a technology-driven global logistics platform for freight forwarding and global supply chain management. |
-| Matson | Honolulu, HI, USA | Matthew J. Cox | Provides ocean freight transportation, logistics, and terminal services, primarily to non-contiguous US economies in the Pacific. |
-| Crowley | Jacksonville, Florida, USA | Thomas B. Crowley Jr. | Provides global marine solutions, energy, and logistics services. |
-| Marine Exchange of the San Francisco Bay Region | Emeryville, California | Scott Humphrey | Tracks, analyzes, and distributes sea traffic and port information to support safe and efficient maritime operations. |
-| Cal Poly Maritime Academy | Vallejo, California | Corey Cook | Provides degree-granting maritime education, including merchant mariner license-track programs and specialized undergraduate studies, as the only such academy on the West Coast. |
-| Port of Oakland | Oakland, California, United States | Kristi McKenney (Executive Director) | Manages and provides facilities for aviation, maritime, and commercial real estate operations. |
-| Port of San Francisco | San Francisco, CA, USA | Executive Director (Name not provided in data) | Oversees and manages a broad range of commercial, maritime, and public access facilities along San Francisco's 7.5 miles of shoreline. |
-| Port of Richmond | Richmond, California | Not found in snippets | Not found in snippets |
-| Port of Benicia | Seattle, Washington | Francisco Quintana | Provides marine terminal operations, logistics, vehicle processing, and rail services. |
-| Port of West Sacramento | West Sacramento, California, United States | Aaron Laurel | Operates a deep-water port facilitating commercial shipping and maritime commerce. |
-| Port of Stockton | Stockton, California, United States | Not available in provided data | Provides marine shipping, maritime transportation, and logistics services. |
-| Port of Redwood City | Redwood City, California, United States | Kristine A. Zortman, Executive Director | Operates as the South San Francisco Bay's only deep-water port, facilitating maritime commerce and supporting the Bay Area. |
-| Global Grant Services | California, United States | Not identified in data | Provides professional grant management consulting services to help agencies secure Federal and State financial resources. |
+| Flexport | San Francisco, California, United States | Ryan Petersen | Offers technology-driven freight forwarding and global supply chain management solutions. |
+| Matson | Honolulu, Hawaii, United States | Matthew J. Cox | Provides maritime transportation, logistics, and terminal operations across the Pacific. |
+| Crowley | Jacksonville, Florida, US | Thomas B. Crowley Jr. | Provides marine solutions, energy, and logistics services globally, including transportation, supply chain, and storage. |
+| Marine Exchange of the San Francisco Bay Region | Emeryville, California | Scott Humphrey (Executive Director) | Tracks, analyzes, and distributes sea traffic information and vessel movement data to support safe and efficient maritime operations in the San Francisco Bay Region. |
+| Cal Poly Maritime Academy | Vallejo, California, USA | Superintendent Jones | Offers degree programs and training for merchant mariners and professionals in maritime transportation and related industries. |
+| Port of Oakland | Oakland, California, United States | Kristi McKenney (Executive Director) | Operates aviation, commercial real estate, and maritime transportation facilities and services. |
+| Port of San Francisco | San Francisco, CA, United States | Not Provided | Manages commercial, maritime, and public access facilities along San Francisco's 7.5 miles of shoreline. |
+| Port of Richmond | Richmond, California, USA | N/A | Manages and facilitates port operations and activities |
+| Port of Benicia | Benicia, California | Ben Hammond | Provides port terminal operations and logistics for automobiles, including processing, rail services, and EV charging. |
+| Port of West Sacramento | Extraction Processing Error | N/A | N/A |
+| Port of Stockton | Stockton, California, USA | Not identified in provided data | Offers marine shipping, transportation, and logistics services. |
+| Port of Redwood City | Extraction Processing Error | N/A | N/A |
+| Global Grant Services | Extraction Processing Error | N/A | N/A |
