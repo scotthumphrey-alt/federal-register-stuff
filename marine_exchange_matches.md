@@ -1,4 +1,6 @@
-# Marine Exchange Event Scan Results - July 21, 2026
+# Marine Exchange Event Scan Results - July 22, 2026
+
+Here are the upcoming Harbor Safety Committee events:
 
 *   **HSC TTE Working Group Meeting** on July 28, 2026, from 2:00 PM - 2:45 PM PDT
 *   **HSC TTE Working Group Meeting** on August 11, 2026, from 2:00 PM - 2:45 PM PDT
