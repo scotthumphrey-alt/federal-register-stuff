@@ -1,13 +1,12 @@
-# Marine Exchange Event Scan Results - September 18, 2026
+# Marine Exchange Event Scan Results - September 21, 2026
 
 Here are the upcoming Harbor Safety Committee events:
 
-*   **HSC TTE Working Group Meeting** on September 22, 2026, from 2:00 PM - 2:45 PM PDT.
-*   **California HSC Summit 2026, Day 2** on October 1, 2026, from 10:00 AM - 12:30 PM PDT.
-*   **HSC TTE Working Group Meeting** on October 6, 2026, from 2:00 PM - 2:45 PM PDT.
-*   **HSC October 2026 Meeting** on October 15, 2026, from 10:00 AM - 12:00 PM PDT.
-*   **HSC TTE Working Group Meeting** on October 20, 2026, from 2:00 PM - 2:45 PM PDT.
-*   **HSC TTE Working Group Meeting** on November 3, 2026, from 2:00 PM - 2:45 PM PST.
-*   **HSC November 2026 Meeting** on November 12, 2026, from 10:00 AM - 12:00 PM PST.
-*   **HSC TTE Working Group Meeting** on November 17, 2026, from 2:00 PM - 2:45 PM PST.
-*   **HSC TTE Working Group Meeting** on December 1, 2026, from 2:00 PM - 2:45 PM PST.
+*   HSC TTE Working Group Meeting is scheduled for September 22, 2026, from 2:00 PM - 2:45 PM PDT.
+*   California HSC Summit 2026 is scheduled for September 30 - October 1, 2026. This is a multi-day event.
+*   California HSC Summit 2026, Day 2 is scheduled for October 1, 2026, from 10:00 AM - 12:30 PM PDT.
+*   HSC TTE Working Group Meeting is scheduled for October 6, 2026, from 2:00 PM - 2:45 PM PDT.
+*   HSC October 2026 Meeting is scheduled for October 15, 2026, from 10:00 AM - 12:00 PM PDT.
+*   HSC TTE Working Group Meeting is scheduled for October 20, 2026, from 2:00 PM - 2:45 PM PDT.
+*   HSC TTE Working Group Meeting is scheduled for November 3, 2026, from 2:00 PM - 2:45 PM PST.
+*   HSC November 2026 Meeting is scheduled for November 12, 2026, from 10:00 AM - 12:00 PM PST.
