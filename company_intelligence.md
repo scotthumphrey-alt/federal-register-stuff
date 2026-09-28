@@ -1,17 +1,17 @@
-# Compiled Corporate & Agency Intelligence Digest - September 21, 2026
+# Compiled Corporate & Agency Intelligence Digest - September 28, 2026
 
 | Entity Name | Corporate Headquarters | Executive Leadership | Operational Profile / Footprint |
 | :--- | :--- | :--- | :--- |
-| Flexport | Information not found in provided data | Information not found in provided data | Information not found in provided data |
-| Matson | Not provided in the given data | Not provided in the given data | Not provided in the given data |
-| Crowley | Not found in provided data | Not found in provided data | Operational details are not present in the provided CAPTCHA challenge content. |
+| Flexport | [Not Found in Provided Data] | [Not Found in Provided Data] | [Not Found in Provided Data] |
+| Matson | Honolulu, Hawaii, USA | Matt Cox | Provides ocean transportation and logistics services, primarily operating container shipping in the Pacific. |
+| Crowley | Information not available from provided search data | Information not available from provided search data | Information not available from provided search data |
 | Marine Exchange of the San Francisco Bay Region | N/A | N/A | N/A |
-| Cal Poly Maritime Academy | N/A | N/A | Information not available from provided search results. |
-| Port of Oakland | N/A | N/A | N/A |
-| Port of San Francisco | N/A | N/A | Information not available in provided data. |
-| Port of Richmond | N/A | N/A | Information about the Port of Richmond is not present in the provided search data. |
-| Port of Benicia | N/A | N/A | N/A |
-| Port of West Sacramento | N/A | N/A | Information not available in provided data. |
-| Port of Stockton | Information not available in provided data | Information not available in provided data | Information not available in provided data |
-| Port of Redwood City | N/A - Not found in provided data | N/A - Not found in provided data | N/A - Not found in provided data |
-| Global Grant Services | N/A | N/A | N/A |
+| Cal Poly Maritime Academy | Not Found | Not Found | Not Found |
+| Port of Oakland | Not Found | Not Found | Not Found |
+| Port of San Francisco | Not provided in the data | Not provided in the data | Not provided in the data |
+| Port of Richmond | Not available from provided data | Not available from provided data | Operational details not available from provided data. |
+| Port of Benicia | Information not available in provided data. | Information not available in provided data. | Information not available in provided data. |
+| Port of West Sacramento | [Information not available in provided data] | [Information not available in provided data] | [Information not available in provided data] |
+| Port of Stockton | Not provided in data | Not provided in data | Not provided in data |
+| Port of Redwood City | Not Found | Not Found | Information not available in the provided search data. |
+| Global Grant Services | N/A | N/A | No information regarding Global Grant Services is available in the provided data. |
