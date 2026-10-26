@@ -1,17 +1,17 @@
-# Compiled Corporate & Agency Intelligence Digest - October 19, 2026
+# Compiled Corporate & Agency Intelligence Digest - October 26, 2026
 
 | Entity Name | Corporate Headquarters | Executive Leadership | Operational Profile / Footprint |
 | :--- | :--- | :--- | :--- |
-| Flexport | Not found in provided data | Not found in provided data | Not found in provided data |
-| Matson | [Information Not Found in Provided Data] | [Information Not Found in Provided Data] | [Information Not Found in Provided Data] |
-| Crowley | N/A | N/A | N/A |
-| Marine Exchange of the San Francisco Bay Region | [Information not found in provided data] | [Information not found in provided data] | [Information not found in provided data] |
-| Cal Poly Maritime Academy | Not provided in search data | Not provided in search data | Information regarding core services, infrastructure, or domain is not available in the provided search data. |
-| Port of Oakland | Information not found in provided data | Information not found in provided data | Information not found in provided data |
-| Port of San Francisco | Extraction Processing Error | N/A | N/A |
-| Port of Richmond | Not extractable from provided data | Not extractable from provided data | Not extractable from provided data |
-| Port of Benicia | Information not available from provided data. | Information not available from provided data. | Information not available from provided data. |
-| Port of West Sacramento | Not available in provided data | Not available in provided data | Not available in provided data |
-| Port of Stockton | Not Available in Provided Data | Not Available in Provided Data | Not Available in Provided Data |
-| Port of Redwood City | Not Provided | Not Provided | Not Provided |
-| Global Grant Services | Information Not Provided | Information Not Provided | Information Not Provided |
+| Flexport | Not available in provided data | Not available in provided data | Not available in provided data |
+| Matson | N/A | N/A | Operational details not present in the provided search results. |
+| Crowley | Not Found | Not Found | Not Found |
+| Marine Exchange of the San Francisco Bay Region | N/A | N/A | N/A |
+| Cal Poly Maritime Academy | Information Not Provided | Information Not Provided | Information Not Provided |
+| Port of Oakland | N/A | N/A | N/A |
+| Port of San Francisco | N/A | N/A | Information not available in provided data. |
+| Port of Richmond | Not available in provided data | Not available in provided data | Not available in provided data |
+| Port of Benicia | N/A | N/A | Information not available in the provided search data. |
+| Port of West Sacramento | N/A | N/A | N/A |
+| Port of Stockton | Not available in provided data | Not available in provided data | Not available in provided data |
+| Port of Redwood City | N/A | N/A | Information not found in the provided content. |
+| Global Grant Services | Not found in data | Not found in data | Not found in data |
