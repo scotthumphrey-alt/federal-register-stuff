@@ -1,17 +1,17 @@
-# Compiled Corporate & Agency Intelligence Digest - October 26, 2026
+# Compiled Corporate & Agency Intelligence Digest - November 02, 2026
 
 | Entity Name | Corporate Headquarters | Executive Leadership | Operational Profile / Footprint |
 | :--- | :--- | :--- | :--- |
-| Flexport | Not available in provided data | Not available in provided data | Not available in provided data |
-| Matson | N/A | N/A | Operational details not present in the provided search results. |
-| Crowley | Not Found | Not Found | Not Found |
-| Marine Exchange of the San Francisco Bay Region | N/A | N/A | N/A |
-| Cal Poly Maritime Academy | Information Not Provided | Information Not Provided | Information Not Provided |
-| Port of Oakland | N/A | N/A | N/A |
-| Port of San Francisco | N/A | N/A | Information not available in provided data. |
-| Port of Richmond | Not available in provided data | Not available in provided data | Not available in provided data |
-| Port of Benicia | N/A | N/A | Information not available in the provided search data. |
-| Port of West Sacramento | N/A | N/A | N/A |
-| Port of Stockton | Not available in provided data | Not available in provided data | Not available in provided data |
-| Port of Redwood City | N/A | N/A | Information not found in the provided content. |
-| Global Grant Services | Not found in data | Not found in data | Not found in data |
+| Flexport | Not found in provided data | Not found in provided data | Not found in provided data |
+| Matson | Not found in provided data | Not found in provided data | Not found in provided data |
+| Crowley | Not provided in the data | Not provided in the data | No information about operations is available in the provided data. |
+| Marine Exchange of the San Francisco Bay Region | No information extracted from provided content | No information extracted from provided content | No information extracted from provided content |
+| Cal Poly Maritime Academy | N/A | N/A | N/A |
+| Port of Oakland | Not Found | Not Found | Not Found |
+| Port of San Francisco | Not Available in provided data | Not Available in provided data | Not Available in provided data |
+| Port of Richmond | N/A | N/A | N/A |
+| Port of Benicia | N/A | N/A | N/A |
+| Port of West Sacramento | Not Found | Not Found | No operational details found in the provided data. |
+| Port of Stockton | Not found in provided data | Not found in provided data | Not found in provided data |
+| Port of Redwood City | Not provided in data | Not provided in data | Not provided in data |
+| Global Grant Services | Not Available | Not Available | Not Available |
