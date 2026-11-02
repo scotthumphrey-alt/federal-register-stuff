@@ -1,4 +1,4 @@
-# Marine Exchange Event Scan Results - October 30, 2026
+# Marine Exchange Event Scan Results - November 02, 2026
 
 Here are the upcoming Harbor Safety Committee events:
 
