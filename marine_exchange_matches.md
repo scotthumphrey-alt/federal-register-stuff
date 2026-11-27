@@ -1,6 +1,4 @@
-# Marine Exchange Event Scan Results - November 26, 2026
-
-Here are the upcoming Harbor Safety Committee events:
+# Marine Exchange Event Scan Results - November 27, 2026
 
 *   HSC TTE Working Group Meeting: December 1, 2026, 2:00 PM - 2:45 PM PST
 *   HSC December 2026 Meeting: December 10, 2026, 10:00 AM - 12:00 PM PST
